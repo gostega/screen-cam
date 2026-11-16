@@ -34,4 +34,4 @@ tests grab an off-screen pixmap they paint themselves.
 
 ## Session reports
 
-- 2026-11-17, M2 tray build: _link added when published_.
+- 2026-11-17, M2 tray build (v0.1.0-rc1): https://claude.ai/artifact/D9cqzygop3HJEzCmLPNtBw
