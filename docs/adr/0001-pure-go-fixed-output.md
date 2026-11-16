@@ -1,6 +1,6 @@
 # ADR-0001: Pure Go capture and a fixed 1280×720 output
 
-Status: accepted on evidence (spike 2026-11-17); the maintainer's verdict pending as D1
+Status: accepted (spike evidence 2026-11-17; the maintainer accepted D1 the same day)
 
 ## Context
 

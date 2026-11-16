@@ -26,7 +26,7 @@ code is too small or a row of labels needs to fit, and stops the camera.
 - On-screen outline and size tag, outside the captured area.
 - `make install`: binary in `~/.local/bin`, menu entry, optional autostart.
 
-Pending the maintainer's verdict on the design review; the list above is the proposal.
+Accepted by the maintainer 2026-11-17 (design review v2: drag handles on a pinned frame, Edit shortcuts file… in the menu).
 
 ## Non-goals
 
