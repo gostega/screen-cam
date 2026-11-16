@@ -5,6 +5,16 @@ lands in Unreleased first. Every release says what upgrading does to your data.
 
 ## Unreleased
 
+- **Added:** Screen Cam runs in the tray. Start and stop with Ctrl+Alt+C or
+  a left-click; the camera starts off and shows an "off" card until then.
+- **Added:** named presets of viewport size: Ctrl+Alt+1–9, saved with
+  Ctrl+Alt+S through a name prompt, and editable from "Edit presets file…".
+- **Added:** live resizing (Ctrl+Alt+= / -, Ctrl+Alt+scroll, aspect cycle
+  Ctrl+Alt+A) without the browser losing the camera; Ctrl+Alt+P pins the
+  frame, which can then be moved by its tag and resized by eight handles.
+- **Added:** shortcuts are configurable from "Edit shortcuts file…" and
+  reload without a restart; a shortcut another program holds is reported.
+- **Added:** `make install` adds a menu entry and starts Screen Cam at login.
 - **Added:** capture engine — a viewport that follows the mouse is written to
   `/dev/video10` at a fixed 1280×720, so resizing never drops the browser's
   camera (`screen-cam follow`); `screen-cam pattern` writes colour bars for

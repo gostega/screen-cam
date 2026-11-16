@@ -11,7 +11,10 @@ against codes shown on screen. Pure Go, X11 only.
 2. `docs/adr/` — decisions not to relitigate. ADR-0001: pure Go, fixed
    1280×720 output, no ffmpeg.
 3. `docs/design.md` — smaller decisions with their reasons.
-4. `KICKOFF.md` — the paste-ready prompt for the M2 tray build.
+4. `KICKOFF.md` — **history**: the prompt the M2 build started from. M2 is
+   built (v0.1.0-rc1, 2026-11-17); only TASK-10, James's own acceptance,
+   is open. Continue from the backlog and the latest session report:
+   the latest session report (linked in docs/design.md §Session reports).
 5. The design review (proposal v1, 2026-11-17):
    https://claude.ai/artifact/HAUvCxn5zaX6zKdeJStgBo — figures `tray-menu`,
    `screen-live`, `save-preset`; proposals D1–D8. **Check its verdict in
@@ -24,7 +27,14 @@ against codes shown on screen. Pure Go, X11 only.
 
 ## Layout
 
-- `main.go` — entry point and commands (`follow`, `pattern`; the tray comes later).
+- `main.go` — entry point: no arguments runs the tray app; `--no-tray`,
+  `follow`, `pattern`, `desktop-entry` for checks and install.
+- `internal/app` — the tray app: state, actions, tray menu, camera loop,
+  desktop glue (zenity, notifications, autostart, single-instance lock).
+- `internal/xui` — global shortcuts, the outline, size tag and drag handles
+  (override-redirect windows, all outside the viewport).
+- `internal/config` — config.json and presets.json, key parsing.
+- `internal/draw` — tray icons, tag text, the off card.
 - `internal/capture` — X11 connection, pointer, `GetImage`.
 - `internal/frame` — BGRA → letterboxed I420 at the fixed output size.
 - `internal/v4l2` — opens the loopback device, sets the format once, writes frames.
@@ -32,6 +42,10 @@ against codes shown on screen. Pure Go, X11 only.
 
 ## Working rules
 
+- `make test` before every commit, and `scripts/e2e.sh` (Docker, Xvfb, the
+  real /dev/video10 — stop any running screen-cam first) before a release.
+  `go run -tags shots ./cmd/shots ./screen-cam DIR` retakes the report
+  screenshots on the real display over a test screen it draws.
 - `make test` before every commit. Tests must not read the real screen: capture
   tests paint an off-screen pixmap and grab that. **Never capture James's live
   desktop to verify anything** — use `screen-cam pattern` and read the device
