@@ -11,13 +11,14 @@ against codes shown on screen. Pure Go, X11 only.
 2. `docs/adr/` — decisions not to relitigate. ADR-0001: pure Go, fixed
    1280×720 output, no ffmpeg.
 3. `docs/design.md` — smaller decisions with their reasons.
-4. The design review (proposal v1, 2026-11-17):
+4. `KICKOFF.md` — the paste-ready prompt for the M2 tray build.
+5. The design review (proposal v1, 2026-11-17):
    https://claude.ai/artifact/HAUvCxn5zaX6zKdeJStgBo — figures `tray-menu`,
    `screen-live`, `save-preset`; proposals D1–D8. **Check its verdict in
    `docs/design.md` §Design review before building any UI.** Until a verdict
    is recorded there, only the engine (capture, frame, v4l2, viewport) is
    cleared to build.
-5. The backlog: `backlog task list --plain` (the `backlog/` symlink points into
+6. The backlog: `backlog task list --plain` (the `backlog/` symlink points into
    the vault at `APPDEV/screen-cam/backlog`; the CLI lives under fnm —
    `export PATH=$HOME/.local/share/fnm/node-versions/v24.19.0/installation/bin:$PATH`).
 
