@@ -31,3 +31,7 @@ stamp (§1) appears in the tray menu and on `--version`.
 The 2026-11-17 spike recorded whatever was on the screen. Verification
 therefore uses `screen-cam pattern` read back from the device, and capture
 tests grab an off-screen pixmap they paint themselves.
+
+## Session reports
+
+- 2026-11-17, M2 tray build: _link added when published_.

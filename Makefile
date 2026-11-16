@@ -30,12 +30,22 @@ release:
 	mkdir -p dist
 	CGO_ENABLED=0 go build -trimpath $(LDFLAGS) -o dist/screen-cam .
 
+# install: the binary, an Applications-menu entry, and start at login (D6;
+# the tray's "Start at login" item turns that off again).
+APPS      ?= $(HOME)/.local/share/applications
+AUTOSTART ?= $(HOME)/.config/autostart
+
 install: build
 	install -Dm755 screen-cam $(PREFIX)/bin/screen-cam
-	@echo "installed $(PREFIX)/bin/screen-cam ($(VERSION))"
+	mkdir -p $(APPS) $(AUTOSTART)
+	$(PREFIX)/bin/screen-cam desktop-entry > $(APPS)/screen-cam.desktop
+	$(PREFIX)/bin/screen-cam desktop-entry > $(AUTOSTART)/screen-cam.desktop
+	@echo "installed $(PREFIX)/bin/screen-cam ($(VERSION)), menu entry, start at login"
+	@echo "start it now from the Applications menu (Screen Cam), or: setsid $(PREFIX)/bin/screen-cam &"
 
 uninstall:
-	rm -f $(PREFIX)/bin/screen-cam
+	-pkill -x screen-cam
+	rm -f $(PREFIX)/bin/screen-cam $(APPS)/screen-cam.desktop $(AUTOSTART)/screen-cam.desktop
 
 changelog:
 	@git shortlog --group=trailer:changelog --format=reference $$(git describe --tags --abbrev=0)..HEAD

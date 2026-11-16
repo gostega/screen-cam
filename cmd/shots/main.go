@@ -162,7 +162,10 @@ func save(name string, img image.Image) {
 
 func sync() { xproto.GetInputFocus(c).Reply() }
 
-func motion(x, y int) { xtest.FakeInput(c, xproto.MotionNotify, 0, 0, root, int16(x), int16(y), 0); sync() }
+func motion(x, y int) {
+	xtest.FakeInput(c, xproto.MotionNotify, 0, 0, root, int16(x), int16(y), 0)
+	sync()
+}
 
 func keycode(sym uint32) byte {
 	setup := xproto.Setup(c)
