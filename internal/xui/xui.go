@@ -22,7 +22,8 @@ import (
 
 const (
 	border  = 3  // outline thickness
-	handleS = 11 // handle square, including its 2px red border
+	handleS = 15 // handle square: red, with a white centre painted on Expose
+	handleW = 7  // the white centre
 )
 
 // Lock bits a user may have on that must not stop a shortcut matching.
@@ -54,6 +55,7 @@ type UI struct {
 	handles  [8]xproto.Window
 	tag      xproto.Window
 	tagGC    xproto.Gcontext
+	whiteGC  xproto.Gcontext
 	shown    bool // outline visible
 	pinned   bool // handles visible, tag draggable
 	tagShown bool
@@ -98,10 +100,14 @@ func New(ev Events) (*UI, error) {
 		u.clickThrough(u.edges[i])
 	}
 	cursors := u.handleCursors()
+	// Handles are drawn, not bordered: a compositing window manager (Cinnamon's
+	// Muffin) does not paint core X window borders, which left only a 7px
+	// white dot that vanished against a white label.
 	for i := range u.handles {
-		u.handles[i] = u.window(0xffffff, 2, red)
+		u.handles[i] = u.window(red, 0, 0)
 		xproto.ChangeWindowAttributes(c, u.handles[i], xproto.CwEventMask|xproto.CwCursor, []uint32{
-			xproto.EventMaskButtonPress | xproto.EventMaskButtonRelease | xproto.EventMaskButtonMotion, uint32(cursors[i]),
+			xproto.EventMaskExposure | xproto.EventMaskButtonPress | xproto.EventMaskButtonRelease | xproto.EventMaskButtonMotion,
+			uint32(cursors[i]),
 		})
 	}
 	u.tag = u.window(red, 0, 0)
@@ -111,6 +117,13 @@ func New(ev Events) (*UI, error) {
 	})
 	u.tagGC, _ = xproto.NewGcontextId(c)
 	xproto.CreateGC(c, u.tagGC, xproto.Drawable(u.tag), 0, nil)
+	u.whiteGC, _ = xproto.NewGcontextId(c)
+	xproto.CreateGC(c, u.whiteGC, xproto.Drawable(u.tag), xproto.GcForeground, []uint32{0xffffff})
+
+	// Mark every overlay window as a drag-and-drop icon: compositors draw no
+	// shadow or animation for that type, so the outline stays a crisp line.
+	all := append(append(u.edges[:0:0], u.edges[:]...), u.handles[:]...)
+	u.setType(append(all, u.tag), "_NET_WM_WINDOW_TYPE_DND")
 	return u, nil
 }
 
@@ -125,6 +138,25 @@ func (u *UI) window(bg uint32, bw uint16, borderPx uint32) xproto.Window {
 	xproto.CreateWindow(u.c, xproto.WindowClassCopyFromParent, w, u.root, 0, 0, 1, 1, bw,
 		xproto.WindowClassInputOutput, xproto.Setup(u.c).DefaultScreen(u.c).RootVisual, mask, []uint32{bg, borderPx, 1})
 	return w
+}
+
+func (u *UI) atom(name string) xproto.Atom {
+	a, err := xproto.InternAtom(u.c, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return 0
+	}
+	return a.Atom
+}
+
+func (u *UI) setType(ws []xproto.Window, typ string) {
+	prop, val := u.atom("_NET_WM_WINDOW_TYPE"), u.atom(typ)
+	if prop == 0 || val == 0 {
+		return
+	}
+	b := []byte{byte(val), byte(val >> 8), byte(val >> 16), byte(val >> 24)}
+	for _, w := range ws {
+		xproto.ChangeProperty(u.c, xproto.PropModeReplace, w, prop, xproto.AtomAtom, 32, 1, b)
+	}
 }
 
 // clickThrough gives w an empty input shape, so clicks land on whatever is
@@ -212,8 +244,9 @@ func (u *UI) layout() {
 	u.place(u.edges[2], r.X-b, r.Y, b, r.H, on && u.shown)
 	u.place(u.edges[3], r.X+r.W, r.Y, b, r.H, on && u.shown)
 
-	// Handles sit outside the rectangle: their inner edge touches it.
-	s := handleS - 4 // inner size; X adds the 2px border on each side
+	// Handles sit outside the rectangle: their inner edge touches it, so they
+	// overlap the outline and never the captured area.
+	s := handleS
 	pos := func(h viewport.Handle) (int, int) {
 		cx, cy := r.X+r.W/2-handleS/2, r.Y+r.H/2-handleS/2
 		left, right, top, bottom := r.X-handleS, r.X+r.W, r.Y-handleS, r.Y+r.H
@@ -383,11 +416,19 @@ func (u *UI) Run() {
 		case xproto.ButtonReleaseEvent:
 			u.moveDrag(e.RootX, e.RootY, uint16(e.State)&xproto.ModMaskShift != 0, true)
 		case xproto.ExposeEvent:
+			u.mu.Lock()
 			if e.Window == u.tag {
-				u.mu.Lock()
 				u.paintTag()
-				u.mu.Unlock()
+			} else {
+				for _, h := range u.handles {
+					if h == e.Window {
+						o := int16((handleS - handleW) / 2)
+						xproto.PolyFillRectangle(u.c, xproto.Drawable(h), u.whiteGC,
+							[]xproto.Rectangle{{X: o, Y: o, Width: handleW, Height: handleW}})
+					}
+				}
 			}
+			u.mu.Unlock()
 		}
 	}
 }
