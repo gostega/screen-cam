@@ -46,3 +46,62 @@ func TestScaledLimitsKeepAspect(t *testing.T) {
 		t.Errorf("lower limit: got %dx%d want 85x%d", small.W, small.H, Min)
 	}
 }
+
+func TestNextAspectCyclesKeepingWidth(t *testing.T) {
+	r := Rect{960, 480, 640, 480} // 4:3
+	want := [][2]int{{640, 360}, {640, 640}, {640, 1137}, {640, 480}}
+	for i, w := range want {
+		r = NextAspect(r, 2560, 1440)
+		if r.W != w[0] || r.H != w[1] {
+			// 9:16 at width 640 is 1137 tall, which fits a 1440 screen.
+			t.Fatalf("step %d: got %dx%d want %dx%d", i+1, r.W, r.H, w[0], w[1])
+		}
+	}
+}
+
+func TestNextAspectShrinksWhenTooTall(t *testing.T) {
+	r := NextAspect(Rect{0, 0, 1200, 1200}, 2560, 1440) // 1:1 -> 9:16 would be 2133 tall
+	if r.H != 1440 || r.W != 810 {
+		t.Errorf("got %dx%d want 810x1440", r.W, r.H)
+	}
+}
+
+func TestMovedStopsAtEdges(t *testing.T) {
+	r := Moved(Rect{100, 100, 640, 480}, -500, 5000, 2560, 1440)
+	if r != (Rect{0, 960, 640, 480}) {
+		t.Errorf("got %+v", r)
+	}
+}
+
+func TestDraggedFreeResize(t *testing.T) {
+	s := Rect{1000, 500, 640, 480}
+	cases := []struct {
+		h      Handle
+		dx, dy int
+		want   Rect
+	}{
+		{BottomRight, 100, 50, Rect{1000, 500, 740, 530}},
+		{TopLeft, -100, -50, Rect{900, 450, 740, 530}},
+		{Right, 60, 999, Rect{1000, 500, 700, 480}},           // side handle ignores dy
+		{Top, 999, -20, Rect{1000, 480, 640, 500}},            // and dx
+		{Left, 5000, 0, Rect{1576, 500, Min, 480}},            // can't cross the other side
+		{BottomRight, 9000, 9000, Rect{1000, 500, 1560, 940}}, // stops at the screen
+	}
+	for _, c := range cases {
+		if got := Dragged(s, c.h, c.dx, c.dy, false, 2560, 1440); got != c.want {
+			t.Errorf("handle %d by %d,%d: got %+v want %+v", c.h, c.dx, c.dy, got, c.want)
+		}
+	}
+}
+
+func TestDraggedKeepAspect(t *testing.T) {
+	s := Rect{1000, 500, 640, 480}
+	got := Dragged(s, BottomRight, 160, 10, true, 2560, 1440) // x led: 800 wide
+	if got != (Rect{1000, 500, 800, 600}) {
+		t.Errorf("corner: got %+v", got)
+	}
+	got = Dragged(s, Left, -64, 0, true, 2560, 1440) // 704 wide, centred vertically
+	if got.W != 704 || got.H != 528 || got.X+got.W != 1640 || got.Y != 476 {
+		t.Errorf("side: got %+v", got)
+	}
+}

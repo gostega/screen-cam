@@ -1,11 +1,12 @@
 // screen-cam turns part of the screen into a webcam: it captures a viewport
 // that follows the mouse and writes it to a v4l2loopback device.
 //
-// The tray app (spec.md) is pending design review. Until then two commands
-// drive the engine directly:
+// With no arguments it runs the tray app (spec.md, design review v2). Three
+// commands drive the engine directly, for scripting and checks:
 //
 //	screen-cam follow [-size 640x480] [-fps 30]   viewport follows the pointer
 //	screen-cam pattern [-seconds 0]               colour bars, no screen capture
+//	screen-cam desktop-entry                      print the menu entry make install writes
 package main
 
 import (
@@ -17,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gostega/screen-cam/internal/app"
 	"github.com/gostega/screen-cam/internal/capture"
 	"github.com/gostega/screen-cam/internal/frame"
 	"github.com/gostega/screen-cam/internal/v4l2"
@@ -34,23 +36,37 @@ func main() {
 		fmt.Println("screen-cam", Version)
 		return
 	}
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: screen-cam follow|pattern [flags]   (the tray app is not built yet)")
-		os.Exit(2)
-	}
 	var err error
-	switch os.Args[1] {
-	case "follow":
-		err = follow(os.Args[2:])
-	case "pattern":
-		err = pattern(os.Args[2:])
-	default:
-		err = fmt.Errorf("unknown command %q", os.Args[1])
+	if len(os.Args) < 2 || os.Args[1] == "--no-tray" {
+		err = runTray(len(os.Args) < 2)
+	} else {
+		switch os.Args[1] {
+		case "follow":
+			err = follow(os.Args[2:])
+		case "pattern":
+			err = pattern(os.Args[2:])
+		case "desktop-entry":
+			exe, e := os.Executable()
+			if e == nil {
+				fmt.Print(app.DesktopEntry(exe))
+			}
+			err = e
+		default:
+			err = fmt.Errorf("unknown command %q (usage: screen-cam [follow|pattern|desktop-entry])", os.Args[1])
+		}
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "screen-cam:", err)
 		os.Exit(1)
 	}
+}
+
+func runTray(withTray bool) error {
+	a, err := app.New(Version)
+	if err != nil {
+		return err
+	}
+	return a.Run(withTray)
 }
 
 func commonFlags(fs *flag.FlagSet) (dev *string, fps *int) {
