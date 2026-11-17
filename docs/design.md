@@ -40,8 +40,24 @@ tests grab an off-screen pixmap they paint themselves.
 
 Proposal v1, 2026-11-17: https://claude.ai/artifact/DKsU1ZM9ug9kVFo18DqBei
 (hint bar H1–H3, screenshots S1–S5, release builds R1–R2, installer I1–I3).
-**Verdict: pending.** R1 and I1–I2 are being built ahead of it as independent
-work; the hint bar and screenshots wait for it.
+**Verdict: accepted, 2026-11-17.** James: *"All proposals on this page
+accepted, in synthesis with my comments."* The comments:
+
+- **S2 folder, amended.** *"This is ok for a default but remove the space. I'd
+  also want it configurable in Preferences please."* Default is
+  `~/Pictures/ScreenCam` (the space removed, read literally). The app has no
+  Preferences window, so the folder is set by **Screenshot folder…** in the
+  tray menu (folder picker → `screenshot_dir`); whether to grow a Preferences
+  submenu/window instead is proposal P1, open.
+- **R1, question.** *"is it possible to build for mac and windows too"* —
+  answered: building is trivial, running is a port (virtual camera, capture,
+  overlay, shortcuts and clipboard are all Linux/X11). R1 stays Linux
+  amd64 + arm64 for v0.2.0; a port would be its own milestone. Open.
+- **R2** (fix `jat release`?) and **I3** (make the repo public) need James.
+
+Deviation, recorded: an unknown name in `"hints"` is reported by notification,
+not the size tag the mock described — the tag is invisible while the camera is
+off, which is exactly when someone edits the file.
 
 - **Installer, not an apt repo (I1).** A signed apt repo needs key management
   and hosting for a one-binary app with no dependencies; a checksummed release
