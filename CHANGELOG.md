@@ -5,6 +5,15 @@ lands in Unreleased first. Every release says what upgrading does to your data.
 
 ## Unreleased
 
+- **Added:** one-line install:
+  `curl -fsSL https://raw.githubusercontent.com/gostega/screen-cam/main/install.sh | sh`.
+  It installs the latest release for amd64 or arm64, checksum-verified, into
+  `~/.local/bin` with a menu entry and start at login, and offers to set up
+  the v4l2loopback camera on apt systems. `--uninstall` removes it.
+- **Added:** releases carry Linux amd64 and arm64 binaries and `SHA256SUMS`.
+
+Upgrade: nothing to do
+
 ## v0.1.0 — 2026-11-17
 
 - **Added:** Screen Cam runs in the tray. Start and stop with Ctrl+Alt+C or
