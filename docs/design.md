@@ -35,3 +35,15 @@ tests grab an off-screen pixmap they paint themselves.
 ## Session reports
 
 - 2026-11-17, M2 tray build (v0.1.0-rc1): https://claude.ai/artifact/D9cqzygop3HJEzCmLPNtBw
+
+## M3 design review
+
+Proposal v1, 2026-11-17: https://claude.ai/artifact/DKsU1ZM9ug9kVFo18DqBei
+(hint bar H1–H3, screenshots S1–S5, release builds R1–R2, installer I1–I3).
+**Verdict: pending.** R1 and I1–I2 are being built ahead of it as independent
+work; the hint bar and screenshots wait for it.
+
+- **Installer, not an apt repo (I1).** A signed apt repo needs key management
+  and hosting for a one-binary app with no dependencies; a checksummed release
+  download gets the same result. The installer stays user-level except the
+  optional camera-module step, which uses sudo and asks first.
