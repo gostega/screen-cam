@@ -11,16 +11,16 @@ against codes shown on screen. Pure Go, X11 only.
 2. `docs/adr/` — decisions not to relitigate. ADR-0001: pure Go, fixed
    1280×720 output, no ffmpeg.
 3. `docs/design.md` — smaller decisions with their reasons.
-4. `KICKOFF.md` — **history**: the prompt the M2 build started from. M2 is
-   built (v0.1.0-rc1, 2026-11-17); only TASK-10, the maintainer's own acceptance,
-   is open. Continue from the backlog and the latest session report:
-   the latest session report (linked in docs/design.md §Session reports).
-5. The design review (proposal v1, 2026-11-17):
-   https://claude.ai/artifact/HAUvCxn5zaX6zKdeJStgBo — figures `tray-menu`,
-   `screen-live`, `save-preset`; proposals D1–D8. **Check its verdict in
-   `docs/design.md` §Design review before building any UI.** Until a verdict
-   is recorded there, only the engine (capture, frame, v4l2, viewport) is
-   cleared to build.
+4. `KICKOFF.md` — **history**: the prompt the M2 build started from. v0.1.0
+   is released (2026-11-17). **Current: M3** (hints under the frame, frame
+   screenshots, release builds, `install.sh`) — backlog milestone m-3, GitHub
+   issues #1–#4, one PR each.
+5. The M3 design review (v1, 2026-11-17):
+   https://claude.ai/artifact/DKsU1ZM9ug9kVFo18DqBei — figures
+   `screen-hints`, `screenshot-flash`, `tray-menu-m3`, `config-file`;
+   proposals H1–H3, S1–S5, R1–R2, I1–I3. **Check its verdict in
+   `docs/design.md` before building the hint bar or screenshots.** The M2
+   review (HAUvCxn5zaX6zKdeJStgBo) is accepted and recorded there.
 6. The backlog: `backlog task list --plain` (the `backlog/` symlink points into
    the vault at `APPDEV/screen-cam/backlog`; the CLI lives under fnm —
    `export PATH=$HOME/.local/share/fnm/node-versions/v24.19.0/installation/bin:$PATH`).
@@ -50,9 +50,11 @@ against codes shown on screen. Pure Go, X11 only.
   tests paint an off-screen pixmap and grab that. **Never capture the maintainer's live
   desktop to verify anything** — use `screen-cam pattern` and read the device
   back, or a window/pixmap the test draws itself.
-- The kernel module and `/dev/video10` come from
-  a separate machine-setup script (needs root). This
-  app never needs root.
+- The kernel module and `/dev/video10` come from `install.sh`'s camera step
+  (apt + sudo, asked first) or by a separate machine-setup script,
+  a separate machine-setup script. The app itself never
+  needs root. GitHub issues and PR text are public-facing: app features only,
+  neutral wording.
 - Go floor 1.25: `golang.org/x/sys` is pinned at v0.47.0 because v0.48+ needs
   Go 1.26. Don't let `go get -u` raise the floor silently.
 - Branch per milestone; commit locally; never push without asking.
