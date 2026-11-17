@@ -25,10 +25,21 @@ run: build
 pattern: build
 	./screen-cam pattern -device $(DEVICE)
 
+# release: the binaries a GitHub release carries (.github/workflows/release.yml
+# runs exactly this), one per architecture plus SHA256SUMS. Static, so they run
+# on any Linux with X11. Asset names are what install.sh asks for.
+ARCHES ?= amd64 arm64
+
 release:
 	@git describe --tags --exact-match >/dev/null 2>&1 || { echo "release: HEAD is not tagged"; exit 1; }
-	mkdir -p dist
-	CGO_ENABLED=0 go build -trimpath $(LDFLAGS) -o dist/screen-cam .
+	@case "$(VERSION)" in *-dirty) echo "release: working tree has uncommitted changes"; exit 1;; esac
+	rm -rf dist && mkdir -p dist
+	for a in $(ARCHES); do \
+	  CGO_ENABLED=0 GOOS=linux GOARCH=$$a go build -trimpath -ldflags "-s -w -X main.Version=$(VERSION)" \
+	    -o dist/screen-cam-linux-$$a . || exit 1; \
+	done
+	cd dist && sha256sum screen-cam-linux-* > SHA256SUMS
+	scripts/release-notes.sh $(VERSION) > dist/NOTES.md
 
 # install: the binary, an Applications-menu entry, and start at login (D6;
 # the tray's "Start at login" item turns that off again).
