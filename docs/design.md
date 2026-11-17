@@ -52,8 +52,11 @@ accepted, in synthesis with my comments."* The comments:
 - **R1, question.** *"is it possible to build for mac and windows too"* —
   answered: building is trivial, running is a port (virtual camera, capture,
   overlay, shortcuts and clipboard are all Linux/X11). R1 stays Linux
-  amd64 + arm64 for v0.2.0; a port would be its own milestone. Open.
-- **R2** (fix `jat release`?) and **I3** (make the repo public) need the maintainer.
+  amd64 + arm64 for v0.2.0; a port would be its own milestone. **Answered
+  2026-11-17:** *"Mac matters more than windows."* A macOS port is the next
+  milestone candidate (starts with a kickoff); Windows is not planned.
+- **I3, done 2026-11-17:** the maintainer made the repo public. **R2** (fix
+  `jat release`?) still needs the maintainer.
 
 Deviation, recorded: an unknown name in `"hints"` is reported by notification,
 not the size tag the mock described — the tag is invisible while the camera is
