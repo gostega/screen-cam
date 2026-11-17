@@ -5,6 +5,8 @@ lands in Unreleased first. Every release says what upgrading does to your data.
 
 ## Unreleased
 
+## v0.1.0 — 2026-11-17
+
 - **Added:** Screen Cam runs in the tray. Start and stop with Ctrl+Alt+C or
   a left-click; the camera starts off and shows an "off" card until then.
 - **Added:** named presets of viewport size: Ctrl+Alt+1–9, saved with
