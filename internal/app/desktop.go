@@ -29,6 +29,13 @@ func notify(summary, body string) {
 // (SCREEN_CAM_DEBUG=1), which the virtual-display checks read.
 var debug = os.Getenv("SCREEN_CAM_DEBUG") == "1"
 
+// debugf writes one line to the debug log (the e2e checks read it).
+func debugf(format string, args ...any) {
+	if debug {
+		fmt.Fprintf(os.Stderr, format+"\n", args...)
+	}
+}
+
 func (a *App) logState() {
 	if !debug {
 		return
@@ -80,7 +87,45 @@ func utf8Locale() bool {
 	return false
 }
 
-// openFile opens path in the user's default editor for its type.
+// askFolder asks for a folder with zenity's folder picker, starting in dir.
+// ok is false on Cancel; other failures are errors, as in askName.
+func askFolder(dir string) (folder string, ok bool, err error) {
+	cmd := exec.Command("zenity", "--file-selection", "--directory",
+		"--title=Screen Cam screenshot folder", "--filename="+strings.TrimSuffix(dir, "/")+"/")
+	if !utf8Locale() {
+		cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
+	}
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("zenity: %w %s", err, strings.TrimSpace(stderr.String()))
+	}
+	folder = strings.TrimSpace(string(out))
+	return folder, folder != "", nil
+}
+
+// tildePath writes a path under the home directory as ~/…, the way the
+// config file shows it.
+func tildePath(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == home {
+		return "~"
+	}
+	if strings.HasPrefix(p, home+"/") {
+		return "~" + p[len(home):]
+	}
+	return p
+}
+
+// openFile opens path in the user's default application for its type.
 func openFile(path string) error {
 	cmd := exec.Command("xdg-open", path)
 	if err := cmd.Start(); err != nil {

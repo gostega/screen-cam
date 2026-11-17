@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gostega/screen-cam/internal/capture"
+	"github.com/gostega/screen-cam/internal/clipboard"
 	"github.com/gostega/screen-cam/internal/config"
 	"github.com/gostega/screen-cam/internal/v4l2"
 	"github.com/gostega/screen-cam/internal/viewport"
@@ -37,6 +38,11 @@ type App struct {
 	screenH  int
 	camErr   error
 	tagTimer *time.Timer
+	badHints string // unknown names in "hints", last reported
+
+	shotMu sync.Mutex // one screenshot at a time
+	shotX  *capture.X // the screenshot's own X connection, made on first use
+	clip   *clipboard.Owner
 
 	configPath, presetsPath string
 	ui                      *xui.UI
@@ -312,6 +318,8 @@ func (a *App) onShortcut(action string) {
 		a.togglePin()
 	case "save":
 		a.savePreset()
+	case "screenshot":
+		a.screenshot()
 	default:
 		var n int
 		if _, err := fmt.Sscanf(action, "preset%d", &n); err == nil {
@@ -364,6 +372,7 @@ func (a *App) showSizeTag() {
 
 // showTag shows text on the frame for 2 seconds (figure screen-live 2).
 func (a *App) showTag(text string) {
+	debugf("tag %s", text)
 	a.ui.SetTag(text)
 	a.mu.Lock()
 	if a.tagTimer != nil {
@@ -392,6 +401,7 @@ func (a *App) bindKeys() {
 	add("aspect", c.Shortcuts.Aspect)
 	add("pin", c.Shortcuts.Pin)
 	add("save", c.Shortcuts.Save)
+	add("screenshot", c.Shortcuts.Screenshot)
 	for n := 1; n <= 9; n++ {
 		if k, err := config.PresetKey(c.Shortcuts.PresetMods, n); err == nil {
 			keys[fmt.Sprintf("preset%d", n)] = k

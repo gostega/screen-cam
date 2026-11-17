@@ -69,12 +69,12 @@ func Save(data []byte, dir string, t time.Time) (string, error) {
 }
 
 // Dir resolves the configured screenshot folder: a leading ~ is the home
-// directory, and empty means "Screen Cam" in the user's Pictures folder.
+// directory, and empty means ScreenCam in the user's Pictures folder.
 func Dir(configured string) string {
 	home, _ := os.UserHomeDir()
 	switch {
 	case configured == "":
-		return filepath.Join(picturesDir(home), "Screen Cam")
+		return filepath.Join(picturesDir(home), "ScreenCam")
 	case configured == "~":
 		return home
 	case strings.HasPrefix(configured, "~/"):

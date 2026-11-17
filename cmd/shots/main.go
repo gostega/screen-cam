@@ -1,6 +1,6 @@
 //go:build shots
 
-// shots takes the report screenshots of a real screen-cam on a real
+// shots takes the report screenshots of a real screen-cam on the real
 // display, without capturing the desktop: it first covers the whole work
 // area (everything but the panel) with a test screen it draws, and it only
 // ever grabs regions inside that test screen, plus the far-right end of the
@@ -232,6 +232,10 @@ func main() {
 	before := strip()
 
 	cfg, _ := os.MkdirTemp("", "sc-shots")
+	// Screenshots go to the temporary config dir, not the user's Pictures.
+	shotsDir := filepath.Join(cfg, "shots")
+	os.MkdirAll(filepath.Join(cfg, "screen-cam"), 0o755)
+	os.WriteFile(filepath.Join(cfg, "screen-cam", "config.json"), []byte(`{"screenshot_dir": "`+shotsDir+`"}`), 0o644)
 	app := exec.Command(exe)
 	app.Env = append(os.Environ(), "SCREEN_CAM_DEBUG=1", "XDG_CONFIG_HOME="+cfg)
 	stderr, _ := app.StderrPipe()
@@ -284,6 +288,21 @@ func main() {
 	motion(1900, 300) // pointer away: the frame stays
 	time.Sleep(300 * time.Millisecond)
 	save("screen-pinned.png", grab(380, 120, 800, 700))
+
+	// Screenshot (figure screenshot-flash): the white outline is up for about
+	// 150 ms, then eases back to red; grab inside that window. The saved PNG
+	// is a picture of the test screen.
+	chord('x')
+	time.Sleep(60 * time.Millisecond)
+	save("screenshot-flash.png", grab(380, 120, 800, 700))
+	time.Sleep(1200 * time.Millisecond)
+	if files, _ := filepath.Glob(filepath.Join(shotsDir, "*.png")); len(files) > 0 {
+		if b, err := os.ReadFile(files[0]); err == nil {
+			os.WriteFile(filepath.Join(out, "screenshot-file.png"), b, 0o644)
+			fmt.Println("screenshot saved as", filepath.Base(files[0]))
+		}
+	}
+	time.Sleep(1200 * time.Millisecond)
 
 	// Save a preset: the zenity prompt, then the notification.
 	// The dialog is a managed window, so it opens beneath the override-redirect

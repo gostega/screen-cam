@@ -5,6 +5,13 @@ lands in Unreleased first. Every release says what upgrading does to your data.
 
 ## Unreleased
 
+- **Added:** a hint bar under the frame reminds you of two shortcuts
+  (pin & resize, screenshot) and never fades. Choose which in config.json's
+  `"hints"`; turn it off with Show shortcut hints in the tray menu.
+- **Added:** Ctrl+Alt+X (or Take screenshot in the tray) captures the frame
+  area at full resolution to the clipboard and to `~/Pictures/ScreenCam`. The
+  outline flashes white to confirm, and it works with the camera off. The
+  folder is set with Screenshot folder… in the menu.
 - **Added:** one-line install:
   `curl -fsSL https://raw.githubusercontent.com/gostega/screen-cam/main/install.sh | sh`.
   It installs the latest release for amd64 or arm64, checksum-verified, into
@@ -12,7 +19,9 @@ lands in Unreleased first. Every release says what upgrading does to your data.
   the v4l2loopback camera on apt systems. `--uninstall` removes it.
 - **Added:** releases carry Linux amd64 and arm64 binaries and `SHA256SUMS`.
 
-Upgrade: nothing to do
+Upgrade: config change — on first start the app adds `show_hints`, `hints`,
+`screenshot_dir` and `shortcuts.screenshot` (Ctrl+Alt+X) to
+`~/.config/screen-cam/config.json`, keeping every existing value.
 
 ## v0.1.0 — 2026-11-17
 

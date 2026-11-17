@@ -10,7 +10,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +27,8 @@ import (
 )
 
 const (
+	border, handleS = 3, 15 // xui's outline and handle sizes
+
 	W, H   = 1280, 720 // camera picture
 	tile   = 160
 	device = "/dev/video10"
@@ -55,20 +59,25 @@ func yuv(r, g, b int) (int, int, int) {
 }
 
 func drawTiles(sw, sh int) {
-	win, _ := xproto.NewWindowId(c)
+	// The tiles are the window's background pixmap, not a drawing on it: X
+	// then repaints them wherever an overlay unmaps, so a check that the
+	// hint bar or outline went away reads tiles, not their stale pixels.
 	s := xproto.Setup(c).DefaultScreen(c)
-	xproto.CreateWindow(c, s.RootDepth, win, root, 0, 0, uint16(sw), uint16(sh), 0,
-		xproto.WindowClassInputOutput, s.RootVisual, xproto.CwOverrideRedirect, []uint32{1})
-	xproto.MapWindow(c, win)
+	pm, _ := xproto.NewPixmapId(c)
+	xproto.CreatePixmap(c, s.RootDepth, pm, xproto.Drawable(root), uint16(sw), uint16(sh))
 	gc, _ := xproto.NewGcontextId(c)
-	xproto.CreateGC(c, gc, xproto.Drawable(win), 0, nil)
+	xproto.CreateGC(c, gc, xproto.Drawable(pm), 0, nil)
 	for ty := 0; ty < sh; ty += tile {
 		for tx := 0; tx < sw; tx += tile {
 			r, g, b := tileColour(tx, ty)
 			xproto.ChangeGC(c, gc, xproto.GcForeground, []uint32{uint32(r<<16 | g<<8 | b)})
-			xproto.PolyFillRectangle(c, xproto.Drawable(win), gc, []xproto.Rectangle{{X: int16(tx), Y: int16(ty), Width: tile, Height: tile}})
+			xproto.PolyFillRectangle(c, xproto.Drawable(pm), gc, []xproto.Rectangle{{X: int16(tx), Y: int16(ty), Width: tile, Height: tile}})
 		}
 	}
+	win, _ := xproto.NewWindowId(c)
+	xproto.CreateWindow(c, s.RootDepth, win, root, 0, 0, uint16(sw), uint16(sh), 0,
+		xproto.WindowClassInputOutput, s.RootVisual, xproto.CwBackPixmap|xproto.CwOverrideRedirect, []uint32{uint32(pm), 1})
+	xproto.MapWindow(c, win)
 	xproto.GetInputFocus(c).Reply() // flush
 }
 
@@ -237,6 +246,75 @@ func waitState(ok func(state) bool) (state, bool) {
 	}
 }
 
+// screenPix is the screen's colour at x,y, read from the Xvfb root.
+func screenPix(x, y int) [3]int {
+	img, err := xproto.GetImage(c, xproto.ImageFormatZPixmap, xproto.Drawable(root), int16(x), int16(y), 1, 1, 0xffffffff).Reply()
+	if err != nil || len(img.Data) < 3 {
+		return [3]int{-1, -1, -1}
+	}
+	return [3]int{int(img.Data[2]), int(img.Data[1]), int(img.Data[0])}
+}
+
+var hintBG = [3]int{0x22, 0x2a, 0x2e}
+
+// waitLog waits for a log line, after the first `from` lines, containing s.
+func waitLog(from int, s string, d time.Duration) (string, bool) {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		for _, l := range logs[min(from, len(logs)):] {
+			if strings.Contains(l, s) {
+				return l, true
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return "", false
+}
+
+var shotRE = regexp.MustCompile(`screenshot rect=(-?\d+),(-?\d+),(\d+)x(\d+) path=(\S+) clipboard=(\S+) save=(\S+)`)
+
+// checkShot takes a screenshot with Ctrl+Alt+X and checks the file, its
+// pixels against the tiles at rect, the clipboard copy and the outline flash.
+func checkShot(label string, wantX, wantY, wantW, wantH int) {
+	from := len(logs)
+	chord('x')
+	white := false
+	for t0 := time.Now(); time.Since(t0) < 600*time.Millisecond && !white; time.Sleep(20 * time.Millisecond) {
+		// The top edge, clear of the middle handle a pinned frame has there.
+		white = screenPix(wantX+wantW/2+30, wantY-2) == [3]int{0xff, 0xff, 0xff}
+	}
+	line, ok := waitLog(from, "screenshot rect=", 3*time.Second)
+	m := shotRE.FindStringSubmatch(line)
+	if !ok || m == nil {
+		check(label+": screenshot taken", false, line)
+		return
+	}
+	n := func(i int) int { v, _ := strconv.Atoi(m[i]); return v }
+	check(label+": frame area captured", n(1) == wantX && n(2) == wantY && n(3) == wantW && n(4) == wantH,
+		fmt.Sprintf("rect %d,%d %dx%d, want %d,%d %dx%d", n(1), n(2), n(3), n(4), wantX, wantY, wantW, wantH))
+	data, err := os.ReadFile(m[5])
+	img, derr := png.Decode(bytes.NewReader(data))
+	if err != nil || derr != nil {
+		check(label+": PNG saved", false, fmt.Sprint(err, derr))
+		return
+	}
+	b := img.Bounds()
+	match := b.Dx() == wantW && b.Dy() == wantH
+	for _, p := range [][2]int{{0, 0}, {wantW / 2, wantH / 2}, {wantW - 1, wantH - 1}} {
+		r, g, bl, _ := img.At(p[0], p[1]).RGBA()
+		tr, tg, tb := tileColour(wantX+p[0], wantY+p[1])
+		if int(r>>8) != tr || int(g>>8) != tg || int(bl>>8) != tb {
+			match = false
+		}
+	}
+	check(label+": PNG is the screen inside the frame, nothing drawn on it", match, fmt.Sprintf("%s %dx%d", filepath.Base(m[5]), b.Dx(), b.Dy()))
+	out, err := exec.Command("xclip", "-o", "-selection", "clipboard", "-t", "image/png").Output()
+	check(label+": same PNG on the clipboard", err == nil && bytes.Equal(out, data), fmt.Sprintf("%d bytes pasted, %d saved, %v", len(out), len(data), err))
+	check(label+": outline flashes white", white, "")
+	_, ok = waitLog(from, "tag Screenshot copied to clipboard", time.Second)
+	check(label+": tag says it was copied", ok, "")
+}
+
 func drain() {
 	for {
 		select {
@@ -332,6 +410,38 @@ func main() {
 	motion(1800, 900)
 	sample("viewport follows the pointer", 1800, 900)
 
+	// Hint bar (figure screen-hints): 640x480 around 1800,900 is the rect
+	// 1480,660; the bar hangs under the bottom outline, dark, outside the frame.
+	check("hint bar under the frame", screenPix(1479, 1144) == hintBG && screenPix(1482, 1137) != hintBG,
+		fmt.Sprintf("below=%v inside=%v", screenPix(1479, 1144), screenPix(1482, 1137)))
+	// Near the bottom of the screen it goes above, right-aligned.
+	motion(1000, 1400) // rect clamps to 680,960 640x480
+	time.Sleep(300 * time.Millisecond)
+	check("hint bar flips above the frame at the screen edge", screenPix(1318, 945) == hintBG,
+		fmt.Sprintf("above-right=%v", screenPix(1318, 945)))
+	motion(1800, 900)
+	time.Sleep(300 * time.Millisecond)
+
+	// Screenshot while live (figure screenshot-flash).
+	cfgPath0 := filepath.Join(cfgDir, "screen-cam", "config.json")
+	b0, _ := os.ReadFile(cfgPath0)
+	shotsDir := filepath.Join(cfgDir, "shots")
+	os.WriteFile(cfgPath0, []byte(strings.Replace(string(b0), `"screenshot_dir": "~/Pictures/ScreenCam"`, `"screenshot_dir": "`+shotsDir+`"`, 1)), 0o644)
+	time.Sleep(1500 * time.Millisecond)
+	checkShot("live", 1480, 660, 640, 480)
+	files, _ := filepath.Glob(filepath.Join(shotsDir, "screen-cam_*.png"))
+	check("screenshot saved in screenshot_dir", len(files) == 1, fmt.Sprint(files))
+
+	// show_hints off in the file hides the bar without a restart.
+	b0, _ = os.ReadFile(cfgPath0)
+	os.WriteFile(cfgPath0, []byte(strings.Replace(string(b0), `"show_hints": true`, `"show_hints": false`, 1)), 0o644)
+	time.Sleep(1500 * time.Millisecond)
+	check("show_hints false hides the bar", screenPix(1479, 1144) != hintBG, fmt.Sprint(screenPix(1479, 1144)))
+	b0, _ = os.ReadFile(cfgPath0)
+	os.WriteFile(cfgPath0, []byte(strings.Replace(string(b0), `"show_hints": false`, `"show_hints": true`, 1)), 0o644)
+	time.Sleep(1500 * time.Millisecond)
+	check("show_hints true brings it back", screenPix(1479, 1144) == hintBG, fmt.Sprint(screenPix(1479, 1144)))
+
 	drain()
 	chord('=')
 	st, ok = waitState(func(s state) bool { return s.w == 704 && s.h == 528 })
@@ -372,6 +482,10 @@ func main() {
 	chord('p')
 	st, ok = waitState(func(s state) bool { return s.pinned })
 	check("Ctrl+Alt+P pins", ok, st.raw)
+	// Pinned, the hint bar sits below the handles (figure screen-hints-pinned).
+	time.Sleep(200 * time.Millisecond)
+	check("pinned: hint bar below the handles", screenPix(st.x-2, st.y+st.rh+handleS+2) == hintBG && screenPix(st.x-2, st.y+st.rh+border+2) != hintBG,
+		fmt.Sprintf("below handles=%v at handle row=%v", screenPix(st.x-2, st.y+st.rh+handleS+2), screenPix(st.x-2, st.y+st.rh+border+2)))
 	motion(200, 200)
 	sample("pinned frame ignores the pointer", 1200, 700)
 
@@ -402,6 +516,14 @@ func main() {
 	fr = readFrame(cam, 3)
 	y, _, _ = pix(fr, 5, 5)
 	check("stopping shows the off card again", y >= wy-3 && y <= wy+3, fmt.Sprintf("corner Y=%d", y))
+
+	// Screenshot with the camera off (S5): it takes the frame where it would
+	// be — still pinned from the drags above — shows it briefly, and goes.
+	stPinned := st
+	checkShot("camera off", stPinned.x, stPinned.y, stPinned.rw, stPinned.rh)
+	time.Sleep(2500 * time.Millisecond)
+	edge := screenPix(stPinned.x+stPinned.rw/2+30, stPinned.y-2)
+	check("camera off: outline goes again after the screenshot", edge != [3]int{0xff, 0x4a, 0x3a} && edge != [3]int{0xff, 0xff, 0xff}, fmt.Sprint(edge))
 
 	// A broken presets file is reported and the app keeps running.
 	os.WriteFile(filepath.Join(cfgDir, "screen-cam", "presets.json"), []byte(`[{"name": "x", `), 0o644)

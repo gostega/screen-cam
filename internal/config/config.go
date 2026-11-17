@@ -1,6 +1,7 @@
 // Package config holds screen-cam's two user-editable files:
 //
-//	~/.config/screen-cam/config.json   device, frame rate, shortcuts
+//	~/.config/screen-cam/config.json   device, frame rate, shortcuts, hints,
+//	                                   screenshot folder
 //	~/.config/screen-cam/presets.json  named viewport sizes
 //
 // Both are plain JSON that the user edits by hand ("Edit … file…" in the tray);
@@ -27,25 +28,35 @@ type Shortcuts struct {
 	Aspect     string `json:"aspect"`
 	Pin        string `json:"pin"`
 	Save       string `json:"save"`
+	Screenshot string `json:"screenshot"`
 	PresetMods string `json:"preset_modifiers"`
 	ScrollMods string `json:"scroll_modifiers"`
 }
 
 // Config is config.json.
 type Config struct {
-	Device      string    `json:"device"`
-	FPS         int       `json:"fps"`
-	ShowOutline bool      `json:"show_outline"`
-	Shortcuts   Shortcuts `json:"shortcuts"`
+	Device      string `json:"device"`
+	FPS         int    `json:"fps"`
+	ShowOutline bool   `json:"show_outline"`
+	// ShowHints and Hints are the shortcut reminders under the frame
+	// (figure screen-hints): Hints names entries of Shortcuts, in order.
+	ShowHints bool     `json:"show_hints"`
+	Hints     []string `json:"hints"`
+	// ScreenshotDir is where screenshots are saved; a leading ~ is home.
+	ScreenshotDir string    `json:"screenshot_dir"`
+	Shortcuts     Shortcuts `json:"shortcuts"`
 }
 
 // Default is what a first run writes.
 func Default() Config {
 	return Config{
 		Device: "/dev/video10", FPS: 30, ShowOutline: true,
+		ShowHints: true, Hints: []string{"pin", "screenshot"},
+		ScreenshotDir: "~/Pictures/ScreenCam",
 		Shortcuts: Shortcuts{
 			Toggle: "Ctrl+Alt+C", Bigger: "Ctrl+Alt+=", Smaller: "Ctrl+Alt+-",
 			Aspect: "Ctrl+Alt+A", Pin: "Ctrl+Alt+P", Save: "Ctrl+Alt+S",
+			Screenshot: "Ctrl+Alt+X",
 			PresetMods: "Ctrl+Alt", ScrollMods: "Ctrl+Alt",
 		},
 	}
@@ -79,25 +90,61 @@ func Dir() (string, error) {
 	return filepath.Join(base, "screen-cam"), nil
 }
 
+// ByName is each shortcut by its JSON name — the names "hints" refers to.
+func (s Shortcuts) ByName() map[string]string {
+	return map[string]string{
+		"toggle": s.Toggle, "bigger": s.Bigger, "smaller": s.Smaller, "aspect": s.Aspect,
+		"pin": s.Pin, "save": s.Save, "screenshot": s.Screenshot,
+	}
+}
+
 // LoadConfig reads path, writing the defaults there first if it is missing.
-// Fields left out of the file keep their defaults.
+// Fields left out of the file keep their defaults, and are written into it,
+// so a setting added by an upgrade shows up in the file for editing.
 func LoadConfig(path string) (Config, error) {
 	c := Default()
-	err := loadOrCreate(path, &c)
-	if err == nil {
-		err = c.validate()
+	if err := loadOrCreate(path, &c); err != nil {
+		return c, err
 	}
-	return c, err
+	if err := c.validate(); err != nil {
+		return c, err
+	}
+	if b, err := os.ReadFile(path); err == nil && missingKeys(b, c) {
+		if err := writeJSON(path, c); err != nil {
+			return c, err
+		}
+	}
+	return c, nil
+}
+
+// missingKeys reports whether file lacks a key that c would write.
+func missingKeys(file []byte, c Config) bool {
+	var have, want map[string]json.RawMessage
+	full, _ := json.Marshal(c)
+	if json.Unmarshal(file, &have) != nil || json.Unmarshal(full, &want) != nil {
+		return false
+	}
+	for k := range want {
+		if _, ok := have[k]; !ok {
+			return true
+		}
+	}
+	var haveS, wantS map[string]json.RawMessage
+	json.Unmarshal(have["shortcuts"], &haveS)
+	json.Unmarshal(want["shortcuts"], &wantS)
+	for k := range wantS {
+		if _, ok := haveS[k]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Config) validate() error {
 	if c.FPS < 1 || c.FPS > 60 {
 		return fmt.Errorf("fps %d: want 1-60", c.FPS)
 	}
-	for name, s := range map[string]string{
-		"toggle": c.Shortcuts.Toggle, "bigger": c.Shortcuts.Bigger, "smaller": c.Shortcuts.Smaller,
-		"aspect": c.Shortcuts.Aspect, "pin": c.Shortcuts.Pin, "save": c.Shortcuts.Save,
-	} {
+	for name, s := range c.Shortcuts.ByName() {
 		if s == "" {
 			continue // an empty string switches that shortcut off
 		}

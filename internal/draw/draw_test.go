@@ -2,6 +2,7 @@ package draw
 
 import (
 	"bytes"
+	"image/color"
 	"image/png"
 	"testing"
 )
@@ -45,5 +46,36 @@ func TestTagSize(t *testing.T) {
 	w, h := TextSize("640×480 · Single label", 1)
 	if tag.Bounds().Dx() != w+8 || tag.Bounds().Dy() != h+8 {
 		t.Errorf("tag %v for text %dx%d", tag.Bounds(), w, h)
+	}
+}
+
+func TestHintBarKeysWhiteLabelsGrey(t *testing.T) {
+	hs := []Hint{{"Ctrl+Alt+P", "pin & resize"}, {"Ctrl+Alt+X", "screenshot"}}
+	img := HintBar(hs)
+	if img.Bounds().Dx() != HintBarWidth(hs) {
+		t.Fatalf("width %d, HintBarWidth %d", img.Bounds().Dx(), HintBarWidth(hs))
+	}
+	count := func(x0, x1 int, c color.RGBA) int {
+		n := 0
+		for y := 0; y < img.Bounds().Dy(); y++ {
+			for x := x0; x < x1; x++ {
+				if img.RGBAAt(x, y) == c {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	kw, _ := TextSize("Ctrl+Alt+P", 1)
+	if count(4, 4+kw, white) == 0 || count(4, 4+kw, grey) != 0 {
+		t.Fatal("first key not drawn in white")
+	}
+	lw, _ := TextSize("Ctrl+Alt+P pin & resize", 1)
+	if count(4+kw+7, 4+lw, grey) == 0 || count(4+kw+7, 4+lw, white) != 0 {
+		t.Fatal("first label not drawn in grey")
+	}
+	sw, _ := TextSize("Ctrl+Alt+P pin & resize | ", 1)
+	if count(4+sw, 4+sw+kw, white) == 0 {
+		t.Fatal("second key not drawn in white")
 	}
 }
