@@ -1,0 +1,63 @@
+name: release
+
+# A v* tag publishes a GitHub release with Linux binaries for each
+# architecture. Release-candidate tags (v0.2.0-rc1) are not published.
+# Run it by hand to (re)build an existing tag's release. That builds with the
+# tag's own Makefile, so only tags from v0.2.0 on (which have this recipe)
+# can be built; v0.1.0 has no binaries.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Skip release candidates
+        id: gate
+        run: |
+          case "$TAG" in
+            *-rc*) echo "$TAG is a release candidate; not publishing"; echo "go=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "go=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == 'true'
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        if: steps.gate.outputs.go == 'true'
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        if: steps.gate.outputs.go == 'true'
+        run: make test
+
+      - name: Build
+        if: steps.gate.outputs.go == 'true'
+        run: make release VERSION="$TAG"
+
+      - name: Publish
+        if: steps.gate.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/screen-cam-linux-* dist/SHA256SUMS --clobber
+          else
+            gh release create "$TAG" dist/screen-cam-linux-* dist/SHA256SUMS \
+              --title "$TAG" --notes-file dist/NOTES.md --verify-tag
+          fi
