@@ -1,15 +1,17 @@
 // Package xui is screen-cam's on-screen side of X11: global shortcuts, the
-// red outline, the size tag and the drag handles of a pinned frame. It owns
+// red outline, the size tag, the hint bar and the drag handles of a pinned
+// frame. It owns
 // one X connection and one event loop; the camera captures on its own
 // connection so drawing never waits on a frame grab.
 //
 // Everything it draws sits OUTSIDE the viewport rectangle, so the camera
-// never sees it (figure screen-live 1-2, screen-pinned 1-2).
+// never sees it (figure screen-live 1-2, screen-pinned 1-2, screen-hints 3).
 package xui
 
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/shape"
@@ -61,7 +63,15 @@ type UI struct {
 	tagShown bool
 	tagMsg   string // set by SetTag: shown for a moment after a resize
 	tagText  string // what the tag currently displays
+	tagBox   [4]int // the tag's x, y, w, h while shown
 	rect     viewport.Rect
+
+	hint      xproto.Window
+	hints     []draw.Hint // wanted, before fitting to the frame's width
+	hintsOn   bool        // "Show shortcut hints"
+	hintShown bool
+	hintDrawn []draw.Hint // what the bar currently displays
+	flashGen  int         // bumped by each Flash, so a newer one takes over
 
 	keys      map[keyKey]string // grabbed key -> action
 	scrollMod uint16
@@ -115,6 +125,11 @@ func New(ev Events) (*UI, error) {
 		xproto.EventMaskExposure | xproto.EventMaskButtonPress | xproto.EventMaskButtonRelease | xproto.EventMaskButtonMotion,
 		uint32(cursors[8]),
 	})
+	// The hint bar is click-through like the outline: it is a reminder and
+	// must never take a click meant for the page under it.
+	u.hint = u.window(0x222a2e, 0, 0)
+	u.clickThrough(u.hint)
+	xproto.ChangeWindowAttributes(c, u.hint, xproto.CwEventMask, []uint32{xproto.EventMaskExposure})
 	u.tagGC, _ = xproto.NewGcontextId(c)
 	xproto.CreateGC(c, u.tagGC, xproto.Drawable(u.tag), 0, nil)
 	u.whiteGC, _ = xproto.NewGcontextId(c)
@@ -123,7 +138,7 @@ func New(ev Events) (*UI, error) {
 	// Mark every overlay window as a drag-and-drop icon: compositors draw no
 	// shadow or animation for that type, so the outline stays a crisp line.
 	all := append(append(u.edges[:0:0], u.edges[:]...), u.handles[:]...)
-	u.setType(append(all, u.tag), "_NET_WM_WINDOW_TYPE_DND")
+	u.setType(append(all, u.tag, u.hint), "_NET_WM_WINDOW_TYPE_DND")
 	return u, nil
 }
 
@@ -214,6 +229,56 @@ func (u *UI) SetTag(text string) {
 	u.layout()
 }
 
+// SetHints sets the hint bar's reminders and whether it shows at all. The bar
+// shows whenever the outline does; it never fades (figure screen-hints 1).
+func (u *UI) SetHints(hints []draw.Hint, on bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.hints, u.hintsOn = hints, on
+	u.layout()
+}
+
+// Flash turns the outline white and eases it back to red over about 0.6 s
+// (figure screenshot-flash 1). It is on the outline, never inside the frame,
+// so the camera picture doesn't flash.
+func (u *UI) Flash() {
+	u.mu.Lock()
+	u.flashGen++
+	gen := u.flashGen
+	u.mu.Unlock()
+	const steps = 6
+	go func() {
+		for i := 0; i <= steps; i++ {
+			u.mu.Lock()
+			if u.flashGen != gen {
+				u.mu.Unlock()
+				return
+			}
+			col := mix(0xffffff, 0xff4a3a, i, steps)
+			for _, w := range u.edges {
+				xproto.ChangeWindowAttributes(u.c, w, xproto.CwBackPixel, []uint32{col})
+				xproto.ClearArea(u.c, false, w, 0, 0, 0, 0)
+			}
+			u.mu.Unlock()
+			if i == 0 {
+				time.Sleep(150 * time.Millisecond) // hold white long enough to see
+			} else {
+				time.Sleep(75 * time.Millisecond)
+			}
+		}
+	}()
+}
+
+// mix is colour a moved i/n of the way to b, per channel.
+func mix(a, b uint32, i, n int) uint32 {
+	var out uint32
+	for sh := 0; sh <= 16; sh += 8 {
+		ca, cb := int(a>>sh&0xff), int(b>>sh&0xff)
+		out |= uint32(ca+(cb-ca)*i/n) << sh
+	}
+	return out
+}
+
 // Move puts the outline around r.
 func (u *UI) Move(r viewport.Rect) {
 	u.mu.Lock()
@@ -292,6 +357,7 @@ func (u *UI) layout() {
 			}
 		}
 		u.place(u.tag, x, y, tw, th, true)
+		u.tagBox = [4]int{x, y, tw, th}
 	} else {
 		u.place(u.tag, 0, 0, 0, 0, false)
 	}
@@ -299,6 +365,66 @@ func (u *UI) layout() {
 		u.tagText = text
 		u.paintTag()
 	}
+	u.layoutHint(r, on)
+}
+
+// layoutHint places the hint bar under the frame (below the handles when
+// pinned), keeping as many hints as fit the frame's width, at least one. With
+// no room below it goes above, right-aligned so it clears the size tag.
+func (u *UI) layoutHint(r viewport.Rect, on bool) {
+	hs := u.hints
+	for len(hs) > 1 && draw.HintBarWidth(hs) > r.W+2*border {
+		hs = hs[:len(hs)-1]
+	}
+	visible := on && u.shown && u.hintsOn && len(hs) > 0
+	var x, y, w, h int
+	if visible {
+		w, h = draw.HintBarWidth(hs), 13+8
+		gap := border
+		if u.pinned {
+			gap = handleS
+		}
+		x, y = r.X-border, r.Y+r.H+gap
+		if y+h > u.screenH { // no room below
+			x, y = r.X+r.W+border-w, r.Y-gap-h
+			if t := u.tagBox; u.tagShown && t[1] < r.Y && x < t[0]+t[2] {
+				y = t[1] - h // stack above the tag rather than over it
+			}
+			visible = y >= 0
+		}
+	}
+	u.hintShown = visible
+	if !visible {
+		u.place(u.hint, 0, 0, 0, 0, false)
+		return
+	}
+	u.place(u.hint, x, y, w, h, true)
+	if !sameHints(hs, u.hintDrawn) {
+		u.hintDrawn = append(u.hintDrawn[:0], hs...)
+		u.paintHint()
+	}
+}
+
+func sameHints(a, b []draw.Hint) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (u *UI) paintHint() {
+	if !u.hintShown || len(u.hintDrawn) == 0 {
+		return
+	}
+	img := draw.HintBar(u.hintDrawn)
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	xproto.PutImage(u.c, xproto.ImageFormatZPixmap, xproto.Drawable(u.hint), u.tagGC,
+		uint16(w), uint16(h), 0, 0, 0, xproto.Setup(u.c).DefaultScreen(u.c).RootDepth, draw.BGRA(img))
 }
 
 func (u *UI) paintTag() {
@@ -419,6 +545,8 @@ func (u *UI) Run() {
 			u.mu.Lock()
 			if e.Window == u.tag {
 				u.paintTag()
+			} else if e.Window == u.hint {
+				u.paintHint()
 			} else {
 				for _, h := range u.handles {
 					if h == e.Window {

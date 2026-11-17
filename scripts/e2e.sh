@@ -17,8 +17,8 @@ if command -v fuser >/dev/null && fuser "$DEV" >/dev/null 2>&1; then
 fi
 sg docker -c "docker run --rm --device $DEV -v $OUT:/work debian:13 bash -c '
   apt-get update -qq >/dev/null && apt-get install -y -qq xvfb zenity xclip >/dev/null 2>&1
-  Xvfb :99 -screen 0 2560x1440x24 >/dev/null 2>&1 &
+  Xvfb :99 -noreset -screen 0 2560x1440x24 >/dev/null 2>&1 &
   sleep 2
-  DISPLAY=:99 SCREEN_CAM_TEST_DISPLAY=:99 /work/clipboard.test 2>/dev/null || { echo "FAIL clipboard tests"; exit 1; }
+  DISPLAY=:99 SCREEN_CAM_TEST_DISPLAY=:99 /work/clipboard.test 2>/dev/null || { echo FAIL clipboard tests; exit 1; }
   DISPLAY=:99 /work/e2e /work/screen-cam
 '"

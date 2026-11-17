@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -44,7 +45,7 @@ func TestFirstRunWritesDefaultsAndReadsThemBack(t *testing.T) {
 	dir := t.TempDir()
 	cp, pp := filepath.Join(dir, "config.json"), filepath.Join(dir, "presets.json")
 	c, err := LoadConfig(cp)
-	if err != nil || c != Default() {
+	if err != nil || !reflect.DeepEqual(c, Default()) {
 		t.Fatalf("first load: %+v %v", c, err)
 	}
 	ps, err := LoadPresets(pp)
@@ -104,5 +105,49 @@ func TestSavePresetsRoundTrip(t *testing.T) {
 	}
 	if got[3].Label() != "Shelf close-up · 800×600" {
 		t.Errorf("label = %q", got[3].Label())
+	}
+}
+
+func TestUpgradeAddsNewKeysKeepingEdits(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	// A v0.1.0 file with one edited shortcut and none of the M3 settings.
+	old := `{"device": "/dev/video10", "fps": 30, "show_outline": false,
+  "shortcuts": {"toggle": "Ctrl+Alt+T", "bigger": "Ctrl+Alt+=", "smaller": "Ctrl+Alt+-",
+  "aspect": "Ctrl+Alt+A", "pin": "Ctrl+Alt+P", "save": "Ctrl+Alt+S",
+  "preset_modifiers": "Ctrl+Alt", "scroll_modifiers": "Ctrl+Alt"}}`
+	if err := os.WriteFile(p, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Shortcuts.Toggle != "Ctrl+Alt+T" || c.ShowOutline {
+		t.Fatalf("edits lost: toggle %q outline %v", c.Shortcuts.Toggle, c.ShowOutline)
+	}
+	if !c.ShowHints || len(c.Hints) != 2 || c.Shortcuts.Screenshot != "Ctrl+Alt+X" || c.ScreenshotDir != "~/Pictures/ScreenCam" {
+		t.Fatalf("new defaults missing: %+v", c)
+	}
+	b, _ := os.ReadFile(p)
+	for _, k := range []string{`"show_hints"`, `"hints"`, `"screenshot_dir"`, `"screenshot": "Ctrl+Alt+X"`, `"toggle": "Ctrl+Alt+T"`} {
+		if !strings.Contains(string(b), k) {
+			t.Errorf("file after upgrade lacks %s", k)
+		}
+	}
+	// A complete file is left byte-for-byte alone.
+	before, _ := os.ReadFile(p)
+	if _, err := LoadConfig(p); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := os.ReadFile(p); string(after) != string(before) {
+		t.Fatal("a complete config was rewritten")
+	}
+}
+
+func TestBadScreenshotKeyRejected(t *testing.T) {
+	c := Default()
+	c.Shortcuts.Screenshot = "Ctrl+Alt+Nope"
+	if err := c.validate(); err == nil {
+		t.Fatal("bad screenshot shortcut accepted")
 	}
 }

@@ -34,7 +34,7 @@ func TestPNGColours(t *testing.T) {
 }
 
 func TestSaveNamesAndCollisions(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "Screen Cam")
+	dir := filepath.Join(t.TempDir(), "ScreenCam")
 	at := time.Date(2026, 11, 17, 9, 41, 7, 0, time.Local)
 	p1, err := Save([]byte("a"), dir, at)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestDir(t *testing.T) {
 	if got := Dir("/tmp/x"); got != "/tmp/x" {
 		t.Fatalf("Dir(/tmp/x) = %s", got)
 	}
-	if got := Dir(""); !strings.HasSuffix(got, "/Screen Cam") {
+	if got := Dir(""); !strings.HasSuffix(got, "/ScreenCam") {
 		t.Fatalf("Dir(\"\") = %s", got)
 	}
 }

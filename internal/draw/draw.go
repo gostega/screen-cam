@@ -133,3 +133,58 @@ func BGRA(img *image.RGBA) []byte {
 	}
 	return out
 }
+
+// HintBG is the hint bar's dark background (figure screen-hints 1).
+var HintBG = color.RGBA{0x22, 0x2a, 0x2e, 0xff}
+
+// HintSep goes between hints on the bar.
+const HintSep = " | "
+
+// Hint is one reminder on the hint bar: the key in white, then what it does.
+type Hint struct{ Key, Label string }
+
+// String is the hint as plain text, which is also how wide it draws.
+func (h Hint) String() string { return h.Key + " " + h.Label }
+
+// HintBar draws hints, separated by HintSep, on the dark bar: keys white,
+// labels and separators grey. Same font and padding as the size tag.
+func HintBar(hints []Hint) *image.RGBA {
+	text := ""
+	for i, h := range hints {
+		if i > 0 {
+			text += HintSep
+		}
+		text += h.String()
+	}
+	img := Text(text, 1, 4, grey, HintBG)
+	// Overdraw each key in white, at the offset its prefix measures to.
+	x := 4
+	for i, h := range hints {
+		if i > 0 {
+			w, _ := TextSize(HintSep, 1)
+			x += w
+		}
+		k := Text(h.Key, 1, 0, white, HintBG)
+		for yy := 0; yy < k.Bounds().Dy(); yy++ {
+			for xx := 0; xx < k.Bounds().Dx(); xx++ {
+				img.Set(x+xx, 4+yy, k.At(xx, yy))
+			}
+		}
+		w, _ := TextSize(h.String(), 1)
+		x += w
+	}
+	return img
+}
+
+// HintBarWidth is HintBar(hints)'s width without drawing it.
+func HintBarWidth(hints []Hint) int {
+	text := ""
+	for i, h := range hints {
+		if i > 0 {
+			text += HintSep
+		}
+		text += h.String()
+	}
+	w, _ := TextSize(text, 1)
+	return w + 8
+}

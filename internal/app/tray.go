@@ -14,10 +14,12 @@ import (
 // items at the end of the menu rather than where the presets are.
 const maxPresetSlots = 20
 
-// tray is the menu in figure tray-menu (design review v2). Shortcut hints sit
+// tray is the menu in figure tray-menu (design review v2), with the M3
+// additions of figure tray-menu-m3. Shortcut hints sit
 // in the item titles: the tray protocol has no accelerator column.
 type tray struct {
 	status, toggle                        *systray.MenuItem
+	shot, openShots, shotsDir, hints      *systray.MenuItem
 	presets                               [maxPresetSlots]*systray.MenuItem
 	save, editPresets, editShortcuts      *systray.MenuItem
 	bigger, smaller, aspect               *systray.MenuItem
@@ -41,6 +43,9 @@ func (a *App) buildTray() {
 	t.status = systray.AddMenuItem("", "")
 	t.status.Disable()
 	t.toggle = systray.AddMenuItem("", "")
+	t.shot = systray.AddMenuItem("", "")
+	t.openShots = systray.AddMenuItem("Open screenshots folder", "")
+	t.shotsDir = systray.AddMenuItem("Screenshot folder…", "")
 	systray.AddSeparator()
 	head := systray.AddMenuItem("Presets", "")
 	head.Disable()
@@ -57,6 +62,7 @@ func (a *App) buildTray() {
 	t.aspect = systray.AddMenuItem("", "")
 	t.follow = systray.AddMenuItemCheckbox("", "", true)
 	t.outline = systray.AddMenuItemCheckbox("Show outline", "", true)
+	t.hints = systray.AddMenuItemCheckbox("Show shortcut hints", "", true)
 	t.login = systray.AddMenuItemCheckbox("Start at login", "", false)
 	systray.AddSeparator()
 	t.version = systray.AddMenuItem("", "")
@@ -81,6 +87,14 @@ func (a *App) trayClicks() {
 		select {
 		case <-t.toggle.ClickedCh:
 			a.toggle()
+		case <-t.shot.ClickedCh:
+			a.screenshot()
+		case <-t.openShots.ClickedCh:
+			a.openShots()
+		case <-t.shotsDir.ClickedCh:
+			a.chooseShotsDir()
+		case <-t.hints.ClickedCh:
+			a.setHintsShown(!t.hints.Checked())
 		case i := <-presetClicks:
 			a.selectPreset(i)
 		case <-t.save.ClickedCh:
@@ -118,6 +132,7 @@ func hint(title, key string) string {
 // refresh brings every menu item and the icon in line with the state.
 func (a *App) refresh() {
 	a.logState()
+	a.updateHints()
 	t := a.tray
 	if t == nil {
 		return
@@ -127,7 +142,8 @@ func (a *App) refresh() {
 	w, h, active := a.w, a.h, a.active
 	presets := append(a.presets[:0:0], a.presets...)
 	sc := a.conf.Shortcuts
-	outlineOn := a.conf.ShowOutline
+	outlineOn, hintsOn := a.conf.ShowOutline, a.conf.ShowHints
+	shotsDir := a.conf.ScreenshotDir
 	aspect := viewport.Aspects[viewport.AspectIndex(viewport.Rect{W: w, H: h})]
 	a.mu.Unlock()
 
@@ -165,6 +181,8 @@ func (a *App) refresh() {
 		}
 		it.Show()
 	}
+	t.shot.SetTitle(hint("Take screenshot", sc.Screenshot))
+	t.shotsDir.SetTooltip(shotsDir)
 	t.save.SetTitle(hint("Save current size as preset…", sc.Save))
 	t.bigger.SetTitle(hint("Bigger", sc.Bigger))
 	t.smaller.SetTitle(hint("Smaller", sc.Smaller))
@@ -173,6 +191,7 @@ func (a *App) refresh() {
 	t.follow.SetTitle(hint("Follow mouse", sc.Pin+" pins"))
 	setChecked(t.follow, !pinned)
 	setChecked(t.outline, outlineOn)
+	setChecked(t.hints, hintsOn)
 	setChecked(t.login, autostartEnabled())
 	t.version.SetTitle(fmt.Sprintf("screen-cam %s · %s", a.Version, a.cfg().Device))
 
