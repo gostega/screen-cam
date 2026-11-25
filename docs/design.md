@@ -48,15 +48,21 @@ accepted, in synthesis with my comments."* The comments:
   `~/Pictures/ScreenCam` (the space removed, read literally). The app has no
   Preferences window, so the folder is set by **Screenshot folder…** in the
   tray menu (folder picker → `screenshot_dir`); whether to grow a Preferences
-  submenu/window instead is proposal P1, open.
+  submenu/window instead is proposal P1. **P1 accepted 2026-11-25: option B**
+  — a **Preferences ▸** submenu holding Screenshot folder…, Show outline,
+  Show shortcut hints and Start at login. Follow mouse stays top-level (a
+  mode with its own shortcut, not a setting).
 - **R1, question.** *"is it possible to build for mac and windows too"* —
   answered: building is trivial, running is a port (virtual camera, capture,
   overlay, shortcuts and clipboard are all Linux/X11). R1 stays Linux
   amd64 + arm64 for v0.2.0; a port would be its own milestone. **Answered
   2026-11-17:** *"Mac matters more than windows."* A macOS port is the next
   milestone candidate (starts with a kickoff); Windows is not planned.
-- **I3, done 2026-11-17:** the maintainer made the repo public. **R2** (fix
-  `jat release`?) still needs the maintainer.
+  2026-11-25: *"keep it linux only for now"* — the port will be started
+  from a macOS session.
+- **I3, done 2026-11-17:** the repo is public. **R2, 2026-11-25:** tag
+  v0.2.0 by hand; `jat release` gets a fix in its own repo (it read its own
+  releases, not the repo it ran in).
 
 Deviation, recorded: an unknown name in `"hints"` is reported by notification,
 not the size tag the mock described — the tag is invisible while the camera is
