@@ -7,11 +7,14 @@ lands in Unreleased first. Every release says what upgrading does to your data.
 
 - **Added:** a hint bar under the frame reminds you of two shortcuts
   (pin & resize, screenshot) and never fades. Choose which in config.json's
-  `"hints"`; turn it off with Show shortcut hints in the tray menu.
+  `"hints"`; turn it off with Preferences ▸ Show shortcut hints in the tray
+  menu.
 - **Added:** Ctrl+Alt+X (or Take screenshot in the tray) captures the frame
   area at full resolution to the clipboard and to `~/Pictures/ScreenCam`. The
   outline flashes white to confirm, and it works with the camera off. The
-  folder is set with Screenshot folder… in the menu.
+  folder is set with Preferences ▸ Screenshot folder… in the menu.
+- **Changed:** the tray menu's settings (Screenshot folder…, Show outline,
+  Show shortcut hints, Start at login) sit in a Preferences submenu.
 - **Added:** one-line install:
   `curl -fsSL https://raw.githubusercontent.com/gostega/screen-cam/main/install.sh | sh`.
   It installs the latest release for amd64 or arm64, checksum-verified, into
