@@ -3,7 +3,7 @@
 All notable changes, newest first. One section per promoted release; work
 lands in Unreleased first. Every release says what upgrading does to your data.
 
-## Unreleased
+## v0.2.0 — 2026-11-25
 
 - **Added:** a hint bar under the frame reminds you of two shortcuts
   (pin & resize, screenshot) and never fades. Choose which in config.json's
@@ -13,14 +13,15 @@ lands in Unreleased first. Every release says what upgrading does to your data.
   area at full resolution to the clipboard and to `~/Pictures/ScreenCam`. The
   outline flashes white to confirm, and it works with the camera off. The
   folder is set with Preferences ▸ Screenshot folder… in the menu.
-- **Changed:** the tray menu's settings (Screenshot folder…, Show outline,
-  Show shortcut hints, Start at login) sit in a Preferences submenu.
 - **Added:** one-line install:
   `curl -fsSL https://raw.githubusercontent.com/gostega/screen-cam/main/install.sh | sh`.
   It installs the latest release for amd64 or arm64, checksum-verified, into
   `~/.local/bin` with a menu entry and start at login, and offers to set up
   the v4l2loopback camera on apt systems. `--uninstall` removes it.
 - **Added:** releases carry Linux amd64 and arm64 binaries and `SHA256SUMS`.
+- **Added:** Screen Cam is MIT licensed.
+- **Changed:** the tray menu's settings (Screenshot folder…, Show outline,
+  Show shortcut hints, Start at login) sit in a Preferences submenu.
 
 Upgrade: config change — on first start the app adds `show_hints`, `hints`,
 `screenshot_dir` and `shortcuts.screenshot` (Ctrl+Alt+X) to
