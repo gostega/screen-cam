@@ -84,4 +84,4 @@ make install    # ~/.local/bin, menu entry, start at login
 
 ## Licence
 
-Not yet chosen; all rights reserved until a licence file is added.
+MIT; see [LICENSE](LICENSE).
